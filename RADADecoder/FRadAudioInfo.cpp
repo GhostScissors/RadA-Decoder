@@ -1,4 +1,5 @@
 ﻿#include "FRadAudioInfo.h"
+#include "SDK/Include/rada_decode.h"
 
 #include <random>
 
@@ -14,14 +15,19 @@ bool FRadAudioInfo::ParseHeader(const uint8_t* InSrcBufferData, uint32_t InSrcBu
 
     uint8_t NumChannels = FileHeader->channels;
 
+    // seek_table_entry_count is 16 bit, no overflow possible
     uint32_t SeekTableSize = FileHeader->seek_table_entry_count * sizeof(uint16_t);
     if (sizeof(RadAFileHeader) + SeekTableSize > InSrcBufferDataSize)
         return false;
 
+    // Store the offset to where the audio data begins.
     auto audioDataOffset = RadAGetBytesToOpen(FileHeader);
+
+    // Check we have all headers and seek table data in memory.
     if (audioDataOffset > InSrcBufferDataSize)
         return false;
 
+    // Write out the header info
     if (QualityInfo)
     {
         QualityInfo->SampleRate = RadASampleRateFromEnum(FileHeader->sample_rate);
@@ -56,6 +62,90 @@ bool FRadAudioInfo::CreateDecoder(const uint8_t* SrcBufferData, uint32_t SrcBuff
     }
 
     uint32_t TotalMemory = DecoderMemoryNeeded + sizeof(RadAudioDecoderHeader);
+
+    //
+    // Allocate and save offsets
+    //
+    RawMemory = (uint8_t*)malloc(TotalMemory);
+    memset(RawMemory, 0, TotalMemory);
+
+    Decoder = (RadAudioDecoderHeader*)RawMemory;
+
+    Container = Decoder->Container();
+
+    if (RadAOpenDecoder(SrcBufferData, SrcBufferDataSize, Container, DecoderMemoryNeeded) == 0)
+    {
+        printf("Failed to open decoder, likely corrupted data.");
+        free(RawMemory);
+        return false;
+    }
+
+    // Set our buffer at the start of the audio data.
+    SrcBufferOffset = RadAGetBytesToOpen(FileHeader);
+    return true;
+}
+
+bool FRadAudioInfo::Decode(const uint8_t* CompressedData, const int32_t CompressedDataSize, uint8_t* OutPCMData, const int32_t OutputPCMDataSize, uint32_t NumChannels, RadAudioDecoderHeader* Decoder)
+{
+    uint32_t SampleStride = NumChannels * sizeof(int16_t); // constexpr uint32 MONO_PCM_SAMPLE_SIZE = sizeof(int16);
+    uint32_t RemnOutputFrames = OutputPCMDataSize / SampleStride;
+    uint32_t RemnCompressedDataSize = CompressedDataSize;
+    const uint8_t* CompressedDataEnd = CompressedData + CompressedDataSize;
+
+    std::vector<float> DeinterleavedDecodeBuffer;
+
+    while (RemnOutputFrames)
+    {
+        // Drain the output reservoir before attempting a decode.
+        if (Decoder->OutputReservoirReadFrames < Decoder->OutputReservoirValidFrames)
+        {
+            
+        }
+
+        if (RemnCompressedDataSize == 0)
+            return false;
+
+        // This shit is bs if we pass the data from the offset it fucking fails but if we pass the fucker with pos 0 it passes but then is corrupted apparently
+        // Either this fucker needs its pos to be increased manually or something, but I highly doubt it
+        // But the container shit is correct, so I don't even fucking know now
+        uint32_t CompressedBytesNeeded = 0;
+        RadAExamineBlockResult BlockResult = RadAExamineBlock(Decoder->Container(), CompressedData, RemnCompressedDataSize, &CompressedBytesNeeded);
+
+        CompressedData += sizeof(RadAContainer*);
+
+        if (BlockResult != RadAExamineBlockResult::Valid)
+        {
+            printf("Invalid block in FRadAudioInfo::Decode: Result = %d, RemnSize = %d \n", BlockResult, RemnCompressedDataSize);
+            if (RemnCompressedDataSize >= 8)
+                printf("First 8 bytes of buffer: 0x%02x 0x%02x 0x%02x 0x%02x:0x%02x 0x%02x 0x%02x 0x%02x \n", CompressedData[0], CompressedData[1], CompressedData[2], CompressedData[3], CompressedData[4], CompressedData[5], CompressedData[6], CompressedData[7]);
+        
+            return false;
+        }
+
+        // RadAudio outputs deinterleaved 32 bit float buffers - we don't want to carry around
+        // those buffers all the time and rad audio uses a pretty healthy amount of stack already
+        // so we drop these in the temp buffers.
+        if (DeinterleavedDecodeBuffer.size() == 0)
+            DeinterleavedDecodeBuffer = std::vector<float>(RadADecodeBlock_MaxOutputFrames * NumChannels);
+
+        size_t CompressedDataConsumed = 0;
+        int16_t DecodeResult = RadADecodeBlock(Decoder->Container(), CompressedData, RemnCompressedDataSize, DeinterleavedDecodeBuffer.data(), RadADecodeBlock_MaxOutputFrames, &CompressedDataConsumed);
+
+        if (DecodeResult == RadADecodeBlock_Error)
+        {
+            printf("Failed to decode block that passed validation checks, corrupted buffer?");
+            return false;
+        }
+        else if (DecodeResult == RadADecodeBlock_Done)
+        {
+            return true;
+        }
+
+        CompressedData += CompressedDataConsumed;
+        RemnCompressedDataSize -= CompressedDataConsumed;
+    }
+    
+    return true;
 }
 
 
