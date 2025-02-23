@@ -17,6 +17,6 @@ struct RadAudioDecoderHeader
 
     RadAContainer* Container()
     {
-        return reinterpret_cast<RadAContainer*>(this + 1);
+        return (RadAContainer*)(this + 1);
     }
 };
