@@ -36,16 +36,42 @@ int main()
     uint8_t* rawMemory = nullptr;
     RadAudioDecoderHeader* decoder = nullptr;
     uint32_t srcBufferOffset = 0;
-    RadAContainer* container = nullptr;
 
-    if (!FRadAudioInfo::CreateDecoder(inputData.get(), inputDataSize, decoder, rawMemory, srcBufferOffset, container))
+    if (!FRadAudioInfo::CreateDecoder(inputData.get(), inputDataSize, decoder, rawMemory, srcBufferOffset))
     {
         std::cerr << "Failed to create decoder." << '\n';
         return 0;
     }
+
+    std::unique_ptr<uint8_t> compressedData = std::unique_ptr<uint8_t>(new uint8_t[inputDataSize - srcBufferOffset]);
+
+    bool inSkip = false;
+    size_t dstOffset = 0;
+
+    for (size_t i = srcBufferOffset; i < inputDataSize; i++)
+    {
+        if (!inSkip && i + 4 < inputDataSize && std::memcmp(&inputData.get()[i], "SEEK", 4) == 0)
+        {
+            inSkip = true;
+            i += 3;
+        }
+        else if (inSkip && i + 2 < inputDataSize && inputData.get()[i] == 0x99 && inputData.get()[i + 1] == 0x99)
+        {
+            inSkip = false;
+            i += 1; // Skip 0x9999
+        }
+        else if (!inSkip)
+        {
+            compressedData.get()[dstOffset++] = inputData.get()[i];
+        }
+    }
+
+    uint8_t* OutPCMData = (uint8_t*)malloc(audioInfo.SampleDataSize);
+    if (!FRadAudioInfo::Decode(compressedData.get(), dstOffset, OutPCMData, audioInfo.SampleDataSize, audioInfo.NumChannels, decoder))
+    {
+        std::cerr << "Failed to decode RADA file" << '\n';
+        return 0;
+    }
     
-    uint8_t* compressedData = inputData.get() + srcBufferOffset;
-    
-    uint8_t* data = nullptr;
     std::cout << "Shit worked" << '\n';
 }

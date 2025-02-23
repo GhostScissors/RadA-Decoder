@@ -1,6 +1,6 @@
 // Copyright Epic Games Tools, LLC. All Rights Reserved.
-#include "rada_decode.h"
-#include "radaudio_decoder.h"
+#include "../../Include/rada_decode.h"
+#include "../RadAudio/radaudio_decoder.h"
 
 #include <string.h>
 
