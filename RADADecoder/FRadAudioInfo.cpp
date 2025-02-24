@@ -129,11 +129,36 @@ FDecodeResult FRadAudioInfo::Decode(uint8_t* CompressedData, const int32_t Compr
         
         if (BlockResult != RadAExamineBlockResult::Valid)
         {
-            printf("Invalid block in FRadAudioInfo::Decode: Result = %d, RemnSize = %d \n", BlockResult, RemnCompressedDataSize);
-            if (RemnCompressedDataSize >= 8)
-                printf("First 8 bytes of buffer: 0x%02x 0x%02x 0x%02x 0x%02x:0x%02x 0x%02x 0x%02x 0x%02x \n", CompressedData[0], CompressedData[1], CompressedData[2], CompressedData[3], CompressedData[4], CompressedData[5], CompressedData[6], CompressedData[7]);
-        
-            break;
+            uint32_t dstOffset = 0;
+            bool bFound = false;
+
+            for (int i = 1; i < RemnCompressedDataSize; i++)
+            {
+                if (CompressedData[i] == 0x55)
+                {
+                    dstOffset = i;
+                    bFound = true;
+                    break;
+                }
+            }
+
+            if (bFound)
+            {
+                size_t newSize = RemnCompressedDataSize - dstOffset;
+                std::memmove(CompressedData, CompressedData + dstOffset, newSize);
+                RemnCompressedDataSize = newSize; // Update the new size of compressed data
+            }
+
+            RadAExamineBlockResult newBlockResult = RadAExamineBlock(Decoder->Container(), CompressedData, RemnCompressedDataSize, &CompressedBytesNeeded);
+
+            if (newBlockResult != RadAExamineBlockResult::Valid || !bFound)
+            {
+                printf("Invalid block in FRadAudioInfo::Decode: Result = %d, RemnSize = %d \n", BlockResult, RemnCompressedDataSize);
+                if (RemnCompressedDataSize >= 8)
+                    printf("First 8 bytes of buffer: 0x%02x 0x%02x 0x%02x 0x%02x:0x%02x 0x%02x 0x%02x 0x%02x \n", CompressedData[0], CompressedData[1], CompressedData[2], CompressedData[3], CompressedData[4], CompressedData[5], CompressedData[6], CompressedData[7]);
+
+                break;
+            }
         }
 
         // RadAudio outputs deinterleaved 32-bit float buffers - we don't want to carry around
@@ -222,7 +247,7 @@ FDecodeResult FRadAudioInfo::Decode(uint8_t* CompressedData, const int32_t Compr
     
     FDecodeResult Result;
 
-    Result.shii = OutputPCMDataSize - RemnOutputFrames;
+    Result.DataLength = OutputPCMDataSize - RemnOutputFrames;
     Result.NumPcmBytesProduced = OutputPCMDataSize - (RemnOutputFrames * SampleStride);
     Result.NumAudioFramesProduced = Result.NumPcmBytesProduced / SampleStride;
     Result.NumCompressedBytesConsumed = CompressedDataSize - RemnCompressedDataSize;

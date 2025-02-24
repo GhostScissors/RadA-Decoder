@@ -147,9 +147,9 @@
     <ClCompile Include="SDK\Src\RadAudio\radaudio_mdct_test.cpp" />
     <ClCompile Include="SDK\Src\RadA\rada_decode.cpp" />
     <ClCompile Include="SDK\Src\RadA\rada_encode.cpp" />
-    <ClCompile Include="WaveHeader.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="argparse.hpp" />
     <ClInclude Include="FDecodeResult.h" />
     <ClInclude Include="FRadAudioInfo.h" />
     <ClInclude Include="FSoundQualityInfo.h" />

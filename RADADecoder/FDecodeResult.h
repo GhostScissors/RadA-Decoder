@@ -3,7 +3,7 @@
 
 struct FDecodeResult
 {
-    int32_t shii;
+    int32_t DataLength;
     
     // Number of bytes of compressed data consumed
     int32_t NumCompressedBytesConsumed;
