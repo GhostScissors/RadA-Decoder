@@ -5,11 +5,20 @@
 
 #include "FRadAudioInfo.h"
 #include "FSoundQualityInfo.h"
+#include "WaveHeader.h"
 
 int main()
 {
-    std::string inputFilePath = R"(D:\Programming\RADADecoder\Emote_GasStation_JunoVersion_Loop.rada)";
+    bool verbose = true;
+
+    //std::string inputFilePath = R"(D:\Programming\RadA-Decoder\Emote_GasStation_JunoVersion_Loop.rada)";
+    //std::ifstream inputFile(inputFilePath, std::ios::binary);
+    
+    std::string inputFilePath = R"(D:\Leaking Tools\FModel\Output\Exports\FortniteGame\Plugins\GameFeatures\BRCosmetics\Content\Sounds\MusicPacks\BuffCat_Comic\Drop_In_MusicPack_Loop.rada)";
     std::ifstream inputFile(inputFilePath, std::ios::binary);
+
+    std::string outFilePath = R"(D:\Programming\RadA-Decoder\Output.wav)";
+    std::ofstream outFile(outFilePath, std::ios::binary);
 
     std::shared_ptr<uint8_t> inputData;
     
@@ -48,20 +57,19 @@ int main()
 
     bool inSkip = false;
     size_t dstOffset = 0;
-
-    for (size_t i = 0; i < inputDataSize; i++)
+    
+    for (size_t i = srcBufferOffset; i < inputDataSize; i++)
     {
         if (!inSkip && i + 4 < inputDataSize && std::memcmp(&inputData.get()[i], "SEEK", 4) == 0)
         {
             inSkip = true;
             i += 3;
+
         }
-        else if (inSkip && i + 2 < inputDataSize && inputData.get()[i] == 0x99 && inputData.get()[i + 1] == 0x99)
+        else if (inSkip && i + 2 < inputDataSize && inputData.get()[i] == 0x55)
         {
             inSkip = false;
-            compressedData.get()[dstOffset++] = 0x99;
-            compressedData.get()[dstOffset++] = 0x99;
-            i += 1; // Skip 0x9999
+            compressedData.get()[dstOffset++] = 0x55;
         }
         else if (!inSkip)
         {
@@ -70,11 +78,37 @@ int main()
     }
     
     uint8_t* OutPCMData = (uint8_t*)malloc(audioInfo.SampleDataSize);
-    if (!FRadAudioInfo::Decode(compressedData.get(), dstOffset, OutPCMData, audioInfo.SampleDataSize, audioInfo.NumChannels, decoder))
-    {
-        std::cerr << "Failed to decode RADA file" << '\n';
-        return 0;
-    }
+    auto result = FRadAudioInfo::Decode(compressedData.get(), dstOffset, OutPCMData, audioInfo.SampleDataSize, audioInfo.NumChannels, decoder);
+
+    WaveHeader header = {0};
+
+    memcpy(header.riff_tag, "RIFF", 4);
+    memcpy(header.wave_tag, "WAVE", 4);
+    memcpy(header.fmt_tag, "fmt ", 4);
+    memcpy(header.data_tag, "data", 4);
+    
+    header.sample_rate = audioInfo.SampleRate;
+    header.num_channels = audioInfo.NumChannels;
+    header.riff_length = result.shii + sizeof(WaveHeader) - 8;
+    header.data_length = result.shii;
+
+    int bits_per_sample = 16;
+    
+    header.fmt_length = 16;
+    header.audio_format = 1;
+    header.byte_rate = header.num_channels * header.sample_rate * bits_per_sample / 8;
+    header.block_align = header.num_channels * bits_per_sample / 8;
+    header.bits_per_sample = bits_per_sample;
+    
+    outFile.write(reinterpret_cast<char*>(&header), sizeof(header));
+    outFile.write(reinterpret_cast<char*>(OutPCMData), result.shii);
+    
+    std::cout << result.NumAudioFramesProduced << '\n';
+    std::cout << result.NumCompressedBytesConsumed << '\n';
+    std::cout << result.NumPcmBytesProduced << '\n';
+    
+    inputFile.close();
+    outFile.close();
     
     std::cout << "Shit worked" << '\n';
 }

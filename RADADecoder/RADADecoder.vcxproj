@@ -147,8 +147,10 @@
     <ClCompile Include="SDK\Src\RadAudio\radaudio_mdct_test.cpp" />
     <ClCompile Include="SDK\Src\RadA\rada_decode.cpp" />
     <ClCompile Include="SDK\Src\RadA\rada_encode.cpp" />
+    <ClCompile Include="WaveHeader.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="FDecodeResult.h" />
     <ClInclude Include="FRadAudioInfo.h" />
     <ClInclude Include="FSoundQualityInfo.h" />
     <ClInclude Include="RadAudioDecoderHeader.h" />
@@ -179,6 +181,7 @@
     <ClInclude Include="SDK\Src\RadAudio\radaudio_sse.h" />
     <ClInclude Include="SDK\Src\RadAudio\rrbits.h" />
     <ClInclude Include="SDK\Src\RadAudio\rrCore.h" />
+    <ClInclude Include="WaveHeader.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
