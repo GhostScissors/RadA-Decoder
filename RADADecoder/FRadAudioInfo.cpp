@@ -44,21 +44,21 @@ bool FRadAudioInfo::ParseHeader(const uint8_t* InSrcBufferData, uint32_t InSrcBu
             QualityInfo->Duration = (float)FileHeader->frame_count / QualityInfo->SampleRate;
         }
     }
-
+    
     return true;
 }
 
-bool FRadAudioInfo::CreateDecoder(const uint8_t* SrcBufferData, uint32_t SrcBufferDataSize, RadAudioDecoderHeader*& Decoder, uint8_t*& RawMemory, uint32_t& SrcBufferOffset, RadAContainer*& Container)
+bool FRadAudioInfo::CreateDecoder(const uint8_t* SrcBufferData, uint32_t SrcBufferDataSize, RadAudioDecoderHeader*& Decoder, uint8_t* RawMemory, uint32_t& SrcBufferOffset)
 {
     if (SrcBufferOffset != 0)
         return false;
     
-    const RadAFileHeader* FileHeader = MIRARadAGetFileHeader_1(SrcBufferData, SrcBufferDataSize);
+    const RadAFileHeader* FileHeader = RadAGetFileHeader(SrcBufferData, SrcBufferDataSize);
     if (FileHeader == nullptr)
         return false;
     
     uint32_t DecoderMemoryNeeded = 0;
-    if (MIRARadAGetMemoryNeededToOpen_1(SrcBufferData, SrcBufferDataSize, &DecoderMemoryNeeded) != 0)
+    if (RadAGetMemoryNeededToOpen(SrcBufferData, SrcBufferDataSize, &DecoderMemoryNeeded) != 0)
     {
         printf("Invalid/insufficient data in FRadAudioInfo::CreateDecoder - bad buffer passed / bad cook? Size = %d", SrcBufferDataSize);
         if (SrcBufferDataSize > 8)
@@ -75,11 +75,11 @@ bool FRadAudioInfo::CreateDecoder(const uint8_t* SrcBufferData, uint32_t SrcBuff
     RawMemory = (uint8_t*)malloc(TotalMemory);
     memset(RawMemory, 0, TotalMemory);
 
-    Decoder = (RadAudioDecoderHeader*)RawMemory;
+    Decoder = reinterpret_cast<RadAudioDecoderHeader*>(RawMemory);
 
-    Container = Decoder->Container();
+    RadAContainer* Container = Decoder->Container();
 
-    if (MIRARadAOpenDecoder_1(SrcBufferData, SrcBufferDataSize, Container, DecoderMemoryNeeded) == 0)
+    if (RadAOpenDecoder(SrcBufferData, SrcBufferDataSize, Container, DecoderMemoryNeeded) == 0)
     {
         printf("Failed to open decoder, likely corrupted data.");
         free(RawMemory);
@@ -126,38 +126,40 @@ FDecodeResult FRadAudioInfo::Decode(uint8_t* CompressedData, const int32_t Compr
         
         uint32_t CompressedBytesNeeded = 0;
         RadAExamineBlockResult BlockResult = RadAExamineBlock(Decoder->Container(), CompressedData, RemnCompressedDataSize, &CompressedBytesNeeded);
-        
+
+        // yeah yeah I know
         if (BlockResult != RadAExamineBlockResult::Valid)
         {
-            uint32_t dstOffset = 0;
-            bool bFound = false;
-
-            for (int i = 1; i < RemnCompressedDataSize; i++)
+            while (true)
             {
-                if (CompressedData[i] == 0x55)
+                uint32_t dstOffset = 0;
+                bool bFound = false;
+
+                for (int i = 1; i < RemnCompressedDataSize; i++)
                 {
-                    dstOffset = i;
-                    bFound = true;
-                    break;
+                    if (CompressedData[i] == 0x55)
+                    {
+                        dstOffset = i;
+                        bFound = true;
+                        break;
+                    }
                 }
-            }
 
-            if (bFound)
-            {
-                size_t newSize = RemnCompressedDataSize - dstOffset;
-                std::memmove(CompressedData, CompressedData + dstOffset, newSize);
-                RemnCompressedDataSize = newSize; // Update the new size of compressed data
-            }
+                if (bFound)
+                {
+                    size_t newSize = RemnCompressedDataSize - dstOffset;
+                    std::memmove(CompressedData, CompressedData + dstOffset, newSize);
+                    RemnCompressedDataSize = newSize; // Update the new size of compressed data
+                }
 
-            RadAExamineBlockResult newBlockResult = RadAExamineBlock(Decoder->Container(), CompressedData, RemnCompressedDataSize, &CompressedBytesNeeded);
+                BlockResult = RadAExamineBlock(Decoder->Container(), CompressedData, RemnCompressedDataSize, &CompressedBytesNeeded);
 
-            if (newBlockResult != RadAExamineBlockResult::Valid || !bFound)
-            {
+                if (BlockResult == RadAExamineBlockResult::Valid)
+                    break;
+                
                 printf("Invalid block in FRadAudioInfo::Decode: Result = %d, RemnSize = %d \n", BlockResult, RemnCompressedDataSize);
                 if (RemnCompressedDataSize >= 8)
                     printf("First 8 bytes of buffer: 0x%02x 0x%02x 0x%02x 0x%02x:0x%02x 0x%02x 0x%02x 0x%02x \n", CompressedData[0], CompressedData[1], CompressedData[2], CompressedData[3], CompressedData[4], CompressedData[5], CompressedData[6], CompressedData[7]);
-
-                break;
             }
         }
 

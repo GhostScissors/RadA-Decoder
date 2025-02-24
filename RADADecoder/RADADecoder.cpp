@@ -14,7 +14,7 @@ int main(int argc, char **argv)
     argparse::ArgumentParser program("RADADecoder");
     program.add_argument("-i", "--input-file").required().help("Input File to Decode");
     program.add_argument("-o", "--output-file").required().help("Path to Output File");
-    program.add_argument("-v", "--verbose").default_value(false).help("Verbose Output");
+    program.add_argument("-v", "--verbose").default_value(false).implicit_value(true).help("Verbose Output");
 
     try
     {
@@ -24,7 +24,7 @@ int main(int argc, char **argv)
     {
         std::cout << err.what() << '\n';
         std::cout << program;
-        exit(0);
+        return -1;
     }
     
     std::string inputFilePath = program.get<std::string>("-i");
@@ -70,7 +70,7 @@ int main(int argc, char **argv)
     if (!FRadAudioInfo::ParseHeader(inputData.data(), inputDataSize, &audioInfo))
     {
         std::cerr << "Failed to parse RADA header." << '\n';
-        return 0;
+        return -1;
     }
 
     if (verbose)
@@ -84,12 +84,10 @@ int main(int argc, char **argv)
     uint8_t* rawMemory = nullptr;
     RadAudioDecoderHeader* decoder = nullptr;
     uint32_t srcBufferOffset = 0;
-    RadAContainer* container = nullptr;
-    
-    if (!FRadAudioInfo::CreateDecoder(inputData.data(), inputDataSize, decoder, rawMemory, srcBufferOffset, container))
+    if (!FRadAudioInfo::CreateDecoder(inputData.data(), inputDataSize, decoder, rawMemory, srcBufferOffset))
     {
         std::cerr << "Failed to create decoder." << '\n';
-        return 0;
+        return -1;
     }
 
     if (verbose)
@@ -133,7 +131,7 @@ int main(int argc, char **argv)
     if (result.NumPcmBytesProduced == 0)
     {
         std::cerr << "Failed to decode." << '\n';
-        exit(-1);
+        return -1;
     }
     
     WaveHeader header;
@@ -168,5 +166,5 @@ int main(int argc, char **argv)
     
     std::cout << "Processing complete." << '\n';
 
-    exit(0);
+    return 0;
 }
