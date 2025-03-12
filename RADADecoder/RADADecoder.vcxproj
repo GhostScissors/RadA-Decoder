@@ -118,7 +118,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp23</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -146,7 +146,6 @@
     <ClCompile Include="SDK\Src\RadAudio\radaudio_mdct_sse2.cpp" />
     <ClCompile Include="SDK\Src\RadAudio\radaudio_mdct_test.cpp" />
     <ClCompile Include="SDK\Src\RadA\rada_decode.cpp" />
-    <ClCompile Include="SDK\Src\RadA\rada_encode.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="argparse.hpp" />
@@ -182,6 +181,9 @@
     <ClInclude Include="SDK\Src\RadAudio\rrbits.h" />
     <ClInclude Include="SDK\Src\RadAudio\rrCore.h" />
     <ClInclude Include="WaveHeader.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="SDK\Src\readme.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

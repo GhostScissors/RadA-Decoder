@@ -157,9 +157,6 @@ FDecodeResult FRadAudioInfo::Decode(uint8_t* CompressedData, const int32_t Compr
                 if (BlockResult == RadAExamineBlockResult::Valid)
                     break;
                 
-                printf("Invalid block in FRadAudioInfo::Decode: Result = %d, RemnSize = %d \n", BlockResult, RemnCompressedDataSize);
-                if (RemnCompressedDataSize >= 8)
-                    printf("First 8 bytes of buffer: 0x%02x 0x%02x 0x%02x 0x%02x:0x%02x 0x%02x 0x%02x 0x%02x \n", CompressedData[0], CompressedData[1], CompressedData[2], CompressedData[3], CompressedData[4], CompressedData[5], CompressedData[6], CompressedData[7]);
             }
         }
 

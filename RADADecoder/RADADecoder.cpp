@@ -63,11 +63,12 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    std::vector<uint8_t> inputData(inputDataSize);
-    inputFile.read(reinterpret_cast<char*>(inputData.data()), inputDataSize);
+    std::shared_ptr<uint8_t> inputData = std::shared_ptr<uint8_t>(new uint8_t[inputDataSize],
+                                             std::default_delete<uint8_t[]>());
+    inputFile.read((char *) inputData.get(), inputDataSize);
     
     FSoundQualityInfo audioInfo;
-    if (!FRadAudioInfo::ParseHeader(inputData.data(), inputDataSize, &audioInfo))
+    if (!FRadAudioInfo::ParseHeader(inputData.get(), inputDataSize, &audioInfo))
     {
         std::cerr << "Failed to parse RADA header." << '\n';
         return -1;
@@ -84,7 +85,7 @@ int main(int argc, char **argv)
     uint8_t* rawMemory = nullptr;
     RadAudioDecoderHeader* decoder = nullptr;
     uint32_t srcBufferOffset = 0;
-    if (!FRadAudioInfo::CreateDecoder(inputData.data(), inputDataSize, decoder, rawMemory, srcBufferOffset))
+    if (!FRadAudioInfo::CreateDecoder(inputData.get(), inputDataSize, decoder, rawMemory, srcBufferOffset))
     {
         std::cerr << "Failed to create decoder." << '\n';
         return -1;
@@ -98,25 +99,26 @@ int main(int argc, char **argv)
         std::cout << "RadAudioDecoderHeader->OutputReservoirReadFrames" << decoder->OutputReservoirReadFrames << '\n';
     }
     
-    std::vector<uint8_t> compressedData(inputDataSize - srcBufferOffset);
+    std::unique_ptr<uint8_t> compressedData =
+      std::unique_ptr<uint8_t>(new uint8_t[inputDataSize - srcBufferOffset]);
     bool inSkip = false;
     size_t dstOffset = 0;
     
     for (size_t i = srcBufferOffset; i < inputDataSize; i++)
     {
-        if (!inSkip && i + 4 < inputDataSize && std::memcmp(&inputData[i], "SEEK", 4) == 0)
+        if (!inSkip && i + 4 < inputDataSize && std::memcmp(&inputData.get()[i], "SEEK", 4) == 0)
         {
             inSkip = true;
             i += 1;
         }
-        else if (inSkip && i + 2 < inputDataSize && inputData[i] == 0x55)
+        else if (inSkip && i + 2 < inputDataSize && inputData.get()[i] == 0x55)
         {
             inSkip = false;
-            compressedData[dstOffset++] = 0x55;
+            compressedData.get()[dstOffset++] = 0x55;
         }
         else if (!inSkip)
         {
-            compressedData[dstOffset++] = inputData[i];
+            compressedData.get()[dstOffset++] = inputData.get()[i];
         }
     }
 
@@ -125,8 +127,8 @@ int main(int argc, char **argv)
         std::cout << "CompressedDataSize" << dstOffset << '\n';
     }
     
-    std::vector<uint8_t> OutPCMData(audioInfo.SampleDataSize);
-    auto result = FRadAudioInfo::Decode(compressedData.data(), dstOffset, OutPCMData.data(), audioInfo.SampleDataSize, audioInfo.NumChannels, decoder);
+    uint8_t *OutPCMData = (uint8_t *) malloc(audioInfo.SampleDataSize);
+    auto result = FRadAudioInfo::Decode(compressedData.get(), dstOffset, OutPCMData, audioInfo.SampleDataSize, audioInfo.NumChannels, decoder);
 
     if (result.NumPcmBytesProduced == 0)
     {
@@ -155,7 +157,7 @@ int main(int argc, char **argv)
     header.bits_per_sample = bits_per_sample;
     
     outFile.write(reinterpret_cast<char*>(&header), sizeof(header));
-    outFile.write(reinterpret_cast<char*>(OutPCMData.data()), result.DataLength);
+    outFile.write(reinterpret_cast<char*>(OutPCMData), result.DataLength);
     
     std::cout << "Audio Frames Produced: " << result.NumAudioFramesProduced << '\n';
     std::cout << "Compressed Bytes Consumed: " << result.NumCompressedBytesConsumed << '\n';
