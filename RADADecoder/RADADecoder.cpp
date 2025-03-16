@@ -33,7 +33,7 @@ int main(int argc, char **argv)
     if (!inputFile)
     {
         std::cerr << "Failed to open input file: " << inputFilePath << '\n';
-        return 1;
+        return -1;
     }
     
     std::string outputFilePath = program.get<std::string>("-o");
@@ -42,7 +42,7 @@ int main(int argc, char **argv)
     if (!outFile)
     {
         std::cerr << "Failed to open output file: " << outputFilePath << '\n';
-        return 1;
+        return -1;
     }
 
     bool verbose = program.get<bool>("-v");
